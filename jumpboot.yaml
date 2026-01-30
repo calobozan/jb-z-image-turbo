@@ -1,0 +1,78 @@
+name: z-image-turbo
+version: 1.0.0
+description: Fast image generation using Z-Image-Turbo (8-step diffusion)
+
+capabilities:
+  - Generate images from text prompts
+  - Sub-second inference on GPU
+  - Photorealistic quality
+  - Bilingual text rendering (English & Chinese)
+
+runtime:
+  python: "3.11"
+  mode: persistent
+  packages:
+    - torch
+    - git+https://github.com/huggingface/diffusers
+    - transformers
+    - accelerate
+    - sentencepiece
+    - pydantic>=2.0
+    - git+https://github.com/calobozan/jb-service.git
+    - pillow
+
+resources:
+  gpu: true
+  vram_gb: 16
+
+rpc:
+  methods:
+    generate:
+      description: Generate an image from a text prompt
+      input:
+        type: object
+        properties:
+          prompt:
+            type: string
+            description: Text description of the image to generate
+          width:
+            type: integer
+            default: 1024
+            description: Image width in pixels
+          height:
+            type: integer
+            default: 1024
+            description: Image height in pixels
+          steps:
+            type: integer
+            default: 9
+            description: Number of inference steps (9 gives 8 DiT forwards)
+          seed:
+            type: integer
+            description: Random seed for reproducibility
+          format:
+            type: string
+            default: png
+            description: Output format (png, jpg, webp)
+        required: [prompt]
+      output:
+        type: object
+        properties:
+          image:
+            type: file
+            description: Generated image
+          width:
+            type: integer
+          height:
+            type: integer
+          prompt:
+            type: string
+          seed:
+            type: integer
+    health:
+      description: Health check
+
+health:
+  method: health
+  interval: 60
+  failure_threshold: 3
