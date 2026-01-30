@@ -72,7 +72,7 @@ class ZImageTurbo(MessagePackService):
         # Set up generator with seed
         generator = None
         if seed is not None:
-            generator = torch.Generator(self.device).manual_seed(seed)
+            generator = torch.Generator(self.device).manual_seed(int(seed))
         
         # Generate - tqdm progress bars are fine with MessagePack transport
         result = self.pipe(
