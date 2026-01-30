@@ -17,6 +17,14 @@ class ZImageTurbo(Service):
     
     def setup(self):
         """Load the Z-Image-Turbo pipeline."""
+        import os
+        import logging
+        
+        # Suppress progress bars that interfere with REPL
+        os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+        logging.getLogger("diffusers").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.WARNING)
+        
         from diffusers import ZImagePipeline
         
         self.log.info("Loading Z-Image-Turbo pipeline...")
@@ -25,25 +33,21 @@ class ZImageTurbo(Service):
         if torch.cuda.is_available():
             device = "cuda"
             dtype = torch.bfloat16
+            self.log.info("Using CUDA with bfloat16")
         else:
             device = "cpu"
             dtype = torch.float32
             self.log.warning("CUDA not available, using CPU (will be slow)")
         
+        self.log.info("Loading model from HuggingFace...")
         self.pipe = ZImagePipeline.from_pretrained(
             "Tongyi-MAI/Z-Image-Turbo",
             torch_dtype=dtype,
-            low_cpu_mem_usage=False,
         )
+        
+        self.log.info(f"Moving model to {device}...")
         self.pipe.to(device)
         self.device = device
-        
-        # Enable flash attention if available
-        try:
-            self.pipe.transformer.set_attention_backend("flash")
-            self.log.info("Flash Attention enabled")
-        except Exception:
-            self.log.info("Using default SDPA attention")
         
         self.log.info(f"Z-Image-Turbo loaded on {device}")
     
@@ -70,6 +74,10 @@ class ZImageTurbo(Service):
         Returns:
             Dictionary with 'image' containing the file path/ref
         """
+        import sys
+        from contextlib import redirect_stderr
+        from io import StringIO
+        
         self.log.info(f"Generating image: {prompt[:50]}...")
         
         # Set up generator with seed
@@ -77,15 +85,17 @@ class ZImageTurbo(Service):
         if seed is not None:
             generator = torch.Generator(self.device).manual_seed(seed)
         
-        # Generate image
-        result = self.pipe(
-            prompt=prompt,
-            width=width,
-            height=height,
-            num_inference_steps=steps,
-            guidance_scale=0.0,  # Must be 0 for Turbo model
-            generator=generator,
-        )
+        # Suppress tqdm progress bars during generation
+        # They interfere with the REPL communication
+        with redirect_stderr(StringIO()):
+            result = self.pipe(
+                prompt=prompt,
+                width=width,
+                height=height,
+                num_inference_steps=steps,
+                guidance_scale=0.0,  # Must be 0 for Turbo model
+                generator=generator,
+            )
         
         image = result.images[0]
         
