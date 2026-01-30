@@ -11,6 +11,7 @@ capabilities:
 runtime:
   python: "3.11"
   mode: persistent
+  transport: msgpack
   packages:
     - torch
     - git+https://github.com/huggingface/diffusers

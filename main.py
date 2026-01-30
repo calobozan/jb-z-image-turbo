@@ -6,10 +6,10 @@ Uses the Tongyi-MAI/Z-Image-Turbo model for fast, high-quality image generation.
 import os
 import torch
 from typing import Optional
-from jb_service import Service, method, run, save_image
+from jb_service import MessagePackService, method, run, save_image
 
 
-class ZImageTurbo(Service):
+class ZImageTurbo(MessagePackService):
     """Fast image generation using Z-Image-Turbo (8-step diffusion)."""
     
     name = "z-image-turbo"
@@ -17,14 +17,6 @@ class ZImageTurbo(Service):
     
     def setup(self):
         """Load the Z-Image-Turbo pipeline."""
-        import os
-        import logging
-        
-        # Suppress progress bars that interfere with REPL
-        os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
-        logging.getLogger("diffusers").setLevel(logging.WARNING)
-        logging.getLogger("transformers").setLevel(logging.WARNING)
-        
         from diffusers import ZImagePipeline
         
         self.log.info("Loading Z-Image-Turbo pipeline...")
@@ -39,6 +31,7 @@ class ZImageTurbo(Service):
             dtype = torch.float32
             self.log.warning("CUDA not available, using CPU (will be slow)")
         
+        # Progress bars are fine - MessagePack transport doesn't care about stdout
         self.log.info("Loading model from HuggingFace...")
         self.pipe = ZImagePipeline.from_pretrained(
             "Tongyi-MAI/Z-Image-Turbo",
@@ -74,10 +67,6 @@ class ZImageTurbo(Service):
         Returns:
             Dictionary with 'image' containing the file path/ref
         """
-        import sys
-        from contextlib import redirect_stderr
-        from io import StringIO
-        
         self.log.info(f"Generating image: {prompt[:50]}...")
         
         # Set up generator with seed
@@ -85,17 +74,15 @@ class ZImageTurbo(Service):
         if seed is not None:
             generator = torch.Generator(self.device).manual_seed(seed)
         
-        # Suppress tqdm progress bars during generation
-        # They interfere with the REPL communication
-        with redirect_stderr(StringIO()):
-            result = self.pipe(
-                prompt=prompt,
-                width=width,
-                height=height,
-                num_inference_steps=steps,
-                guidance_scale=0.0,  # Must be 0 for Turbo model
-                generator=generator,
-            )
+        # Generate - tqdm progress bars are fine with MessagePack transport
+        result = self.pipe(
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_inference_steps=steps,
+            guidance_scale=0.0,  # Must be 0 for Turbo model
+            generator=generator,
+        )
         
         image = result.images[0]
         
