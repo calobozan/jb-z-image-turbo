@@ -92,7 +92,8 @@ class ZImageTurbo(MessagePackService):
         temp_path = save_image(image, format=format)
         
         # Import into file store with TTL
-        file_name = f"z-image-{seed or 'random'}.{format}"
+        seed_str = str(int(seed)) if seed is not None else "random"
+        file_name = f"z-image-{seed_str}.{format}"
         file_id = self.files.import_file(temp_path, name=file_name, ttl=ttl)
         
         # Clean up temp file
