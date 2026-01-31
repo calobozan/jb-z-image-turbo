@@ -53,6 +53,7 @@ class ZImageTurbo(MessagePackService):
         steps: int = 9,
         seed: Optional[int] = None,
         format: str = "png",
+        ttl: int = 3600,
     ) -> dict:
         """Generate an image from a text prompt.
         
@@ -63,9 +64,10 @@ class ZImageTurbo(MessagePackService):
             steps: Number of inference steps (default 9, which gives 8 DiT forwards)
             seed: Random seed for reproducibility (optional)
             format: Output format - png, jpg, or webp (default png)
+            ttl: Time to live in seconds (default 3600 = 1 hour, 0 = permanent)
         
         Returns:
-            Dictionary with 'image' containing the file path/ref
+            Dictionary with 'file_id' for the stored image
         """
         self.log.info(f"Generating image: {prompt[:50]}...")
         
@@ -86,17 +88,25 @@ class ZImageTurbo(MessagePackService):
         
         image = result.images[0]
         
-        # Save and return path (jb-serve will wrap as FileRef)
-        image_path = save_image(image, format=format)
+        # Save to temp file
+        temp_path = save_image(image, format=format)
         
-        self.log.info(f"Generated image saved to {image_path}")
+        # Import into file store with TTL
+        file_name = f"z-image-{seed or 'random'}.{format}"
+        file_id = self.files.import_file(temp_path, name=file_name, ttl=ttl)
+        
+        # Clean up temp file
+        os.remove(temp_path)
+        
+        self.log.info(f"Generated image stored as {file_id}")
         
         return {
-            "image": image_path,
+            "file_id": file_id,
             "width": width,
             "height": height,
             "prompt": prompt,
             "seed": seed,
+            "ttl": ttl,
         }
     
     @method
